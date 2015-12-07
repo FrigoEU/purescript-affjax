@@ -10,9 +10,10 @@ import Control.Bind ((<=<))
 
 import Data.Argonaut.Core (Json())
 import Data.Either (Either(..))
-import Data.Foreign (Foreign(), F(), parseJSON, readString, unsafeReadTagged)
+import Data.Foreign (Foreign(), F(), parseJSON, readString, unsafeReadTagged, ForeignError(..), tagOf, unsafeFromForeign)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
+import Node.Buffer (Buffer(..))
 import qualified Data.ArrayBuffer.Types as A
 
 import DOM.File.Types (Blob())
@@ -31,6 +32,7 @@ import Network.HTTP.MimeType.Common (applicationJSON)
 data ResponseType a
   = ArrayBufferResponse
   | BlobResponse
+  | BufferResponse
   | DocumentResponse
   | JSONResponse
   | StringResponse
@@ -38,6 +40,7 @@ data ResponseType a
 instance eqResponseType :: Eq (ResponseType a) where
   eq ArrayBufferResponse ArrayBufferResponse = true
   eq BlobResponse        BlobResponse        = true
+  eq BufferResponse      BufferResponse      = true
   eq DocumentResponse    DocumentResponse    = true
   eq JSONResponse        JSONResponse        = true
   eq StringResponse      StringResponse      = true
@@ -46,6 +49,7 @@ instance eqResponseType :: Eq (ResponseType a) where
 instance showResponseType :: Show (ResponseType a) where
   show ArrayBufferResponse = "ArrayBufferResponse"
   show BlobResponse = "BlobResponse"
+  show BufferResponse = "BufferResponse"
   show DocumentResponse = "DocumentResponse"
   show JSONResponse = "JSONResponse"
   show StringResponse = "StringResponse"
@@ -53,6 +57,7 @@ instance showResponseType :: Show (ResponseType a) where
 responseTypeToString :: forall a. (ResponseType a) -> String
 responseTypeToString ArrayBufferResponse = "arraybuffer"
 responseTypeToString BlobResponse = "blob"
+responseTypeToString BufferResponse = "buffer"
 responseTypeToString DocumentResponse = "document"
 responseTypeToString JSONResponse = "text" -- IE doesn't support "json" responseType
 responseTypeToString StringResponse = "text"
@@ -69,6 +74,13 @@ class Respondable a where
 instance responsableBlob :: Respondable Blob where
   responseType = Tuple Nothing BlobResponse
   fromResponse = unsafeReadTagged "Blob"
+  
+instance responsableBuffer :: Respondable Buffer where
+  responseType = Tuple Nothing BufferResponse
+  fromResponse f = if isBuffer f then Right (unsafeFromForeign f) else Left $ TypeMismatch "Buffer" (tagOf f)
+  
+foreign import isBuffer :: Foreign -> Boolean
+
 
 instance responsableDocument :: Respondable Document where
   responseType = Tuple Nothing DocumentResponse
